@@ -3,11 +3,11 @@
 <head>
     <title>Technical Services App</title>
     <!--  (c) 2015 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Wed Jan 06 2016 10:05:17 GMT-0500 (EST) -->
+    <!--  Build Date: Wed Jan 06 2016 10:49:10 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Wed Jan 06 2016 10:05:17 GMT-0500 (EST)";
-        var CHECKSUM = 31373695085;
+        var APP_BUILD_DATE = "Wed Jan 06 2016 10:49:10 GMT-0700 (MST)";
+        var CHECKSUM = 39181671262;
     </script>
     
     <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
@@ -672,9 +672,8 @@ Ext.define('Rally.technicalservices.FileUtilities', {
             fetch: grid.getStore().config.fetch,
             filters: grid.getStore().config.filters,
             model: grid.getStore().config.model,
-            limit:Infinity
-            // ,
-            // pageSize: 200
+            limit:Infinity,
+            pageSize: Infinity
 
         });
         
@@ -847,6 +846,49 @@ Ext.define('Rally.technicalservices.FileUtilities', {
     }
 
 });
+Ext.define('Rally.technicalservices.ModelBuilder',{
+    singleton: true,
+
+    build: function(modelType, newModelName) {
+        var deferred = Ext.create('Deft.Deferred');
+
+        Rally.data.ModelFactory.getModel({
+            type: modelType,
+            success: function(model) {
+
+                var default_fields = [{
+                    name: '__userPermissions',
+                    defaultValue: []
+                }];
+
+                /**
+                 * Begin model definition
+                 */
+                var new_model = Ext.define(newModelName, {
+                    extend: model,
+                    logger: new Rally.technicalservices.Logger(),
+                    fields: default_fields,
+                    loadUserPermissions: function() {
+                        this.logger.log('loadUserPermissions', this.get('UserName'), this);
+                        //This is where we set the new user permissions
+                        //this.myLoadPermissionsfunctionwithapromise().then(assign the permissions to the userpermission field)
+
+
+                        this.set('__userPermissions', ['Permissions1','Permissions2','Permissions3']);
+
+                    }
+
+                });
+                /**
+                 * End model definition
+                 */
+
+                deferred.resolve(new_model);
+            }
+        });
+        return deferred;
+    }
+});
 Ext.define("TSApp", {
     extend: 'Rally.app.App',
     componentCls: 'app',
@@ -869,10 +911,10 @@ Ext.define("TSApp", {
     },
                         
     launch: function() {
-        this._myMask = new Ext.LoadMask(Ext.getBody(), {msg:"Please wait.This may take long depending on the size of your data..."});
-        this._myMask.show();
+        //this._myMask = new Ext.LoadMask(Ext.getBody(), {msg:"Please wait.This may take long depending on the size of your data..."});
+        //this._myMask.show();
         var me = this;
-        me.setLoading("Loading stuff...");
+
         me._loadByName();
     },
     
@@ -885,8 +927,9 @@ Ext.define("TSApp", {
                 labelAlign: 'right',
                 allowClear : true,
                 listeners: {
-                    select: me._loadAStoreWithAPromiseWithModel,
-                    ready: me._loadAStoreWithAPromiseWithModel,
+                    select: me._filterWsapiStore,
+                    //ready: me._loadAStoreWithAPromiseWithModel,
+                    ready: me._loadUsersWithPermissions,
                     scope: me
                 }
         });
@@ -894,6 +937,110 @@ Ext.define("TSApp", {
 
     },
 
+    _loadUsersWithPermissions: function(){
+        this.setLoading("Loading Users...");
+        Rally.technicalservices.ModelBuilder.build('User','UserWithPermissions').then({
+            success: function(newModel){
+                var field_names = ['FirstName','LastName','UserName','SubscriptionPermission','Role','__userPermissions'];
+                var store = Ext.create('Rally.data.wsapi.Store',{
+                    model: newModel,
+                    fetch: field_names,
+                    pageSize: 25
+                });
+
+                store.on('load', this._loadPermissions, this);
+                store.load();
+
+                this.setLoading(false);
+                this._buildGrid(store);
+
+
+
+            },
+            scope: this
+        })
+    },
+    _loadPermissions: function(store, records, successful){
+        //Todo: check operation for success and report error if not successful
+        this.logger.log('_loadUserPermissions', records, successful);
+        _.each(records, function(r){
+            r.loadUserPermissions();
+        });
+    },
+    _buildGrid: function(store){
+        this._grid = this.down('#container_body').add({
+            xtype: 'rallygrid',
+            store: store,
+            columnCfgs: [
+                {
+                    text: 'Name', dataIndex: 'FirstName', flex: 1
+                },
+                {
+                    text: 'User Name', dataIndex: 'UserName', flex: 1
+                },
+                {
+                    text: 'Workspace / Project',
+                    dataIndex: '__userPermissions',
+                    minWidth: 400,
+                    flex: 2,
+                    renderer: function(UserPermissions){
+                        ///var text = [];
+                        if(UserPermissions && UserPermissions.length == 0){
+                            return 'NA';
+                        } else {
+                            return UserPermissions.join('<br/>');
+                        }
+                        //_.each(UserPermissions, function(userPermission){
+                        //    text.push(userPermission);
+                        //    //if(userPermission.get('_type') == 'projectpermission' || userPermission.get('_type') == 'workspacepermission' ){
+                        //    //    text.push(userPermission.get('Name') +' - '+userPermission.get('Role') );
+                        //    //}
+                        //});
+                        //return text.join('<br/>');
+                    }
+                },
+                {
+                    text: 'Role', dataIndex: 'Role', flex: 1
+                }]
+
+        });
+
+        this.down('#container_body').add(this._grid);
+
+        this.down('#container_header').add({
+            xtype:'rallybutton',
+            itemId:'export_button',
+            text: 'Download CSV',
+            disabled: false,
+            //iconAlign: 'right',
+            listeners: {
+                scope: this,
+                click: function() {
+                    this._export();
+                }
+            }
+        });
+    },
+    _filterStore: function(userNameComboBox){
+        var userNameComboBoxValue = userNameComboBox.getRecord().get('UserName');
+        console.log(userNameComboBoxValue);
+        var localGrid = this.down('rallygrid');
+        if(localGrid){
+            var store = localGrid.getStore();
+            store.filterBy(function(record){
+                console.log('Filter By',record.get('UserName'),userNameComboBoxValue);
+                    console.log(record.get('UserName') == userNameComboBoxValue);
+
+                if(record.get('UserName') == userNameComboBoxValue){
+                    console.log('Before returning');
+                    return true;
+                }else
+                {
+                    return false;
+                }
+            });
+        }
+    },
 
     _loadAStoreWithAPromiseWithModel: function(){
         var me = this;
@@ -954,7 +1101,6 @@ Ext.define("TSApp", {
         if(this._initial_store){
             //console.log('store exists',this._initial_store);
             this._initial_store.clearFilter(true);
-            this._initial_store.filter(myFilters);
             this._initial_store.load();
             console.log(this._initial_store);
             return deferred.promise;
@@ -964,7 +1110,6 @@ Ext.define("TSApp", {
             Ext.create('Rally.data.wsapi.Store', {
                 model: model_name,
                 fetch: model_fields,
-                filters: myFilters,
                 limit: Infinity
 
             }).load({
@@ -993,7 +1138,10 @@ Ext.define("TSApp", {
                                 // create custom store (call function ) combine permissions and results in to one.
                                 var store = Ext.create('Rally.data.custom.Store', {
                                     data: users,
-                                    scope: this
+                                    scope: this,
+                                    filters: myFilters,
+                                    remoteFilter: true,
+                                    pageSize:100
                                 });
                                 me._initial_store = store;
                                 console.log('Initial store',store);    
