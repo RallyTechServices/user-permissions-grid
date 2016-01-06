@@ -1,0 +1,7 @@
+{
+    "name": "Technical Services App",
+    "className": "TSApp",
+    "server": "https://us1.rallydev.com",
+    "sdk": "2.0",
+    "apiKey": "_PUT_APIKEY_HERE_"
+}
