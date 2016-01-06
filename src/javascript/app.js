@@ -20,10 +20,10 @@ Ext.define("TSApp", {
     },
                         
     launch: function() {
-        this._myMask = new Ext.LoadMask(Ext.getBody(), {msg:"Please wait.This may take long depending on the size of your data..."});
-        this._myMask.show();
+        //this._myMask = new Ext.LoadMask(Ext.getBody(), {msg:"Please wait.This may take long depending on the size of your data..."});
+        //this._myMask.show();
         var me = this;
-        me.setLoading("Loading stuff...");
+
         me._loadByName();
     },
     
@@ -36,8 +36,9 @@ Ext.define("TSApp", {
                 labelAlign: 'right',
                 allowClear : true,
                 listeners: {
-                    select: me._filterStore,
-                    ready: me._loadAStoreWithAPromiseWithModel,
+                    select: me._filterWsapiStore,
+                    //ready: me._loadAStoreWithAPromiseWithModel,
+                    ready: me._loadUsersWithPermissions,
                     scope: me
                 }
         });
@@ -45,6 +46,90 @@ Ext.define("TSApp", {
 
     },
 
+    _loadUsersWithPermissions: function(){
+        this.setLoading("Loading Users...");
+        Rally.technicalservices.ModelBuilder.build('User','UserWithPermissions').then({
+            success: function(newModel){
+                var field_names = ['FirstName','LastName','UserName','SubscriptionPermission','Role','__userPermissions'];
+                var store = Ext.create('Rally.data.wsapi.Store',{
+                    model: newModel,
+                    fetch: field_names,
+                    pageSize: 25
+                });
+
+                store.on('load', this._loadPermissions, this);
+                store.load();
+
+                this.setLoading(false);
+                this._buildGrid(store);
+
+
+
+            },
+            scope: this
+        })
+    },
+    _loadPermissions: function(store, records, successful){
+        //Todo: check operation for success and report error if not successful
+        this.logger.log('_loadUserPermissions', records, successful);
+        _.each(records, function(r){
+            r.loadUserPermissions();
+        });
+    },
+    _buildGrid: function(store){
+        this._grid = this.down('#container_body').add({
+            xtype: 'rallygrid',
+            store: store,
+            columnCfgs: [
+                {
+                    text: 'Name', dataIndex: 'FirstName', flex: 1
+                },
+                {
+                    text: 'User Name', dataIndex: 'UserName', flex: 1
+                },
+                {
+                    text: 'Workspace / Project',
+                    dataIndex: '__userPermissions',
+                    minWidth: 400,
+                    flex: 2,
+                    renderer: function(UserPermissions){
+                        ///var text = [];
+                        if(UserPermissions && UserPermissions.length == 0){
+                            return 'NA';
+                        } else {
+                            return UserPermissions.join('<br/>');
+                        }
+                        //_.each(UserPermissions, function(userPermission){
+                        //    text.push(userPermission);
+                        //    //if(userPermission.get('_type') == 'projectpermission' || userPermission.get('_type') == 'workspacepermission' ){
+                        //    //    text.push(userPermission.get('Name') +' - '+userPermission.get('Role') );
+                        //    //}
+                        //});
+                        //return text.join('<br/>');
+                    }
+                },
+                {
+                    text: 'Role', dataIndex: 'Role', flex: 1
+                }]
+
+        });
+
+        this.down('#container_body').add(this._grid);
+
+        this.down('#container_header').add({
+            xtype:'rallybutton',
+            itemId:'export_button',
+            text: 'Download CSV',
+            disabled: false,
+            //iconAlign: 'right',
+            listeners: {
+                scope: this,
+                click: function() {
+                    this._export();
+                }
+            }
+        });
+    },
     _filterStore: function(userNameComboBox){
         var userNameComboBoxValue = userNameComboBox.getRecord().get('UserName');
         console.log(userNameComboBoxValue);
