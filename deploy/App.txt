@@ -3,11 +3,11 @@
 <head>
     <title>Technical Services App</title>
     <!--  (c) 2015 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Wed Jan 06 2016 10:49:10 GMT-0700 (MST) -->
+    <!--  Build Date: Tue Jan 12 2016 11:22:00 GMT-0500 (EST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Wed Jan 06 2016 10:49:10 GMT-0700 (MST)";
-        var CHECKSUM = 39181671262;
+        var APP_BUILD_DATE = "Tue Jan 12 2016 11:22:00 GMT-0500 (EST)";
+        var CHECKSUM = 44382394379;
     </script>
     
     <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
@@ -705,34 +705,152 @@ Ext.define('Rally.technicalservices.FileUtilities', {
         });
         return deferred.promise;
     },
+
+    // custom grid assumes there store is fully loaded
+    _getCSVFromCustomBackedGridWithPaging: function(grid) {
+        var deferred = Ext.create('Deft.Deferred');
+
+
+        var store = Ext.create('Rally.data.custom.Store',{
+            model: grid.getStore().config.model,
+            filters: grid.getStore().config.filters,
+            limit:Infinity,
+            pageSize: Infinity
+        });
+
+        var columns = grid.columns;
+        var headers = this._getHeadersFromGrid(grid);
+        var column_names = this._getColumnNamesFromGrid(grid);
+        
+        var record_count = grid.getStore().getTotalCount(),
+            page_size = grid.getStore().pageSize,
+            pages = Math.ceil(record_count/page_size),
+            promises = [];
+
+        // for (var page = 1; page <= pages; page ++ ) {
+        //     promises.push(this.loadStorePage(grid, store, columns, page, pages));
+        // }
+
+        promises.push(this.loadStorePage(grid, store, columns, page, pages));
+
+        Deft.Promise.all(promises).then({
+            success: function(csvs){
+                var csv = [];
+                csv.push('"' + headers.join('","') + '"');
+                _.each(csvs, function(c){
+                    _.each(c, function(line){
+                        csv.push(line);
+                    });
+                });
+                csv = csv.join('\r\n');
+                deferred.resolve(csv);
+                Rally.getApp().setLoading(false);
+            }
+        });
+        return deferred.promise;
+
+        // var headers = this._getHeadersFromGrid(grid);
+        
+        // var columns = grid.columns;
+        // var column_names = this._getColumnNamesFromGrid(grid);
+
+       
+        // var csv = [];
+        // csv.push('"' + headers.join('","') + '"');
+
+        // var number_of_records = store.getTotalCount();
+        
+        // this.logger.log("Number of records to export:", number_of_records);
+        
+        // for (var i = 0; i < number_of_records; i++) {
+        //     var record = store.getAt(i);
+        //     if ( ! record ) {
+        //         this.logger.log("Number or lines in CSV:", csv.length);
+        //         return csv.join('\r\n');            }
+        //     csv.push( this._getCSVFromRecord(record, grid, store) );
+        // }
+        
+        // this.logger.log("Number or lines in CSV:", csv.length);
+        // return csv.join('\r\n');
+    },
+
     
     // custom grid assumes there store is fully loaded
     _getCSVFromCustomBackedGrid: function(grid) {
-        var headers = this._getHeadersFromGrid(grid);
-        
-        var columns = grid.columns;
-        var column_names = this._getColumnNamesFromGrid(grid);
-        var store = grid.getStore();
-        
-        var csv = [];
-        csv.push('"' + headers.join('","') + '"');
+    var deferred = Ext.create('Deft.Deferred');
+            var me = this;
+            
+            Rally.getApp().setLoading("Assembling data for export...");
+            
+            var headers = this._getHeadersFromGrid(grid);
+            var store = Ext.clone( grid.getStore() );
+            var columns = grid.columns;
+            var column_names = this._getColumnNamesFromGrid(grid);
+            
+            var record_count = grid.getStore().getTotalCount();
+            var original_page_size = grid.getStore().pageSize;
+            
+            var page_size = 20000;
+            var number_of_pages = Math.ceil(record_count/page_size);
+            store.pageSize = page_size;
+            
+            var pages = [],
+                promises = [];
 
-        var number_of_records = store.getTotalCount();
-        
-        this.logger.log("Number of records to export:", number_of_records);
-        
-        for (var i = 0; i < number_of_records; i++) {
-            var record = store.getAt(i);
-            if ( ! record ) {
-                this.logger.log("Number or lines in CSV:", csv.length);
-                return csv.join('\r\n');            }
-            csv.push( this._getCSVFromRecord(record, grid, store) );
-        }
-        
-        this.logger.log("Number or lines in CSV:", csv.length);
-        return csv.join('\r\n');
+            for (var page = 1; page <= number_of_pages; page ++ ) {
+                pages.push(page);
+            }
+            
+            Ext.Array.each(pages, function(page) {
+                promises.push(function() { return me._loadStorePage(grid, store, columns, page, pages.length )} );
+            });
+            
+            Deft.Chain.sequence(promises).then({
+                success: function(csvs){
+
+                    // set page back to last view
+                    store.pageSize = original_page_size;
+                    store.loadPage(1);
+                    
+                    var csv = [];
+                    csv.push('"' + headers.join('","') + '"');
+                    _.each(csvs, function(c){
+                        _.each(c, function(line){
+                            csv.push(line);
+                        });
+                    });
+                    csv = csv.join('\r\n');
+                    deferred.resolve(csv);
+                    Rally.getApp().setLoading(false);
+                }
+            });
+            
+            return deferred.promise;
     },
     
+
+
+    _loadStorePage: function(grid, store, columns, page, total_pages){
+        var deferred = Ext.create('Deft.Deferred');
+
+        //this.logger.log("_loadStorePage", page, " of ", total_pages);
+        
+        store.loadPage(page, {
+            callback: function (records) {
+                Rally.getApp().setLoading(Ext.String.format('Page {0} of {1}',page, total_pages));
+                var csv = [];
+                for (var i = 0; i < records.length; i++) {
+                    var record = records[i];
+                    csv.push( this._getCSVFromRecord(record, grid, store) );
+                }
+                deferred.resolve(csv);
+            },
+            scope: this
+        });
+        return deferred.promise;
+    },
+
+
     _getHeadersFromGrid: function(grid) {
         var headers = [];        
         var columns = grid.columns;
@@ -775,12 +893,15 @@ Ext.define('Rally.technicalservices.FileUtilities', {
         
         return this._getCSVFromCustomBackedGrid(grid);
     },
+
     loadStorePage: function(grid, store, columns, page, total_pages){
+        console.log('Inside loadStorePage');
         var deferred = Ext.create('Deft.Deferred');
         this.logger.log('loadStorePage',page, total_pages);
 
         store.loadPage(page, {
-            callback: function (records) {
+            callback: function (records, operation, success) {
+                //console.log(' page records length',records.length,'success',success);
                 var csv = [];
                 Rally.getApp().setLoading(Ext.String.format('Page {0} of {1} loaded',page, total_pages));
                 for (var i = 0; i < records.length; i++) {
@@ -812,7 +933,7 @@ Ext.define('Rally.technicalservices.FileUtilities', {
         
         var node_values = [];
         var columns = grid.columns;
-        
+        //console.log('inside _getCSVFromRecord');
         Ext.Array.each(columns, function (column) {
             if (column.xtype != 'rallyrowactioncolumn') {
                 if (column.dataIndex) {
@@ -842,6 +963,7 @@ Ext.define('Rally.technicalservices.FileUtilities', {
 
             }
         }, this);
+        //console.log('Node values',node_values);
         return '"' + node_values.join('","') + '"';
     }
 
@@ -868,14 +990,33 @@ Ext.define('Rally.technicalservices.ModelBuilder',{
                     extend: model,
                     logger: new Rally.technicalservices.Logger(),
                     fields: default_fields,
+                    scope:this,
                     loadUserPermissions: function() {
-                        this.logger.log('loadUserPermissions', this.get('UserName'), this);
+                        //this.logger.log('loadUserPermissions', this.get('UserName'), this);
                         //This is where we set the new user permissions
                         //this.myLoadPermissionsfunctionwithapromise().then(assign the permissions to the userpermission field)
+                        this._getColleciton(this).then({
+                            scope: this,
+                            success: function(records){
+                                this.set('__userPermissions', records);
+                            },
+                            failure: function(){
 
+                            }
+                        }
+                        );
 
-                        this.set('__userPermissions', ['Permissions1','Permissions2','Permissions3']);
+                    },
+                    _getColleciton: function(record){
+                        var deferred = Ext.create('Deft.Deferred');
+                                record.getCollection('UserPermissions').load({
+                                        fetch: ['Role', 'Name', '_type'],
+                                        callback: function(records, operation, success) {
+                                            deferred.resolve(records);
+                                        }
 
+                                });   
+                        return deferred;
                     }
 
                 });
@@ -884,7 +1025,9 @@ Ext.define('Rally.technicalservices.ModelBuilder',{
                  */
 
                 deferred.resolve(new_model);
-            }
+            },
+
+            
         });
         return deferred;
     }
@@ -911,11 +1054,11 @@ Ext.define("TSApp", {
     },
                         
     launch: function() {
-        //this._myMask = new Ext.LoadMask(Ext.getBody(), {msg:"Please wait.This may take long depending on the size of your data..."});
-        //this._myMask.show();
+        this._myMask = new Ext.LoadMask(Ext.getBody(), {msg:"Please wait.This may take long depending on the size of your data..."});
+        this._myMask.show();
         var me = this;
-
-        me._loadByName();
+        me.setLoading("Loading stuff...");
+        me._loadAStoreWithAPromiseWithModel();
     },
     
     _loadByName: function(){
@@ -927,9 +1070,8 @@ Ext.define("TSApp", {
                 labelAlign: 'right',
                 allowClear : true,
                 listeners: {
-                    select: me._filterWsapiStore,
-                    //ready: me._loadAStoreWithAPromiseWithModel,
-                    ready: me._loadUsersWithPermissions,
+                    select: me._filterStore,
+                    ready: me._loadAStoreWithAPromiseWithModel,
                     scope: me
                 }
         });
@@ -937,90 +1079,6 @@ Ext.define("TSApp", {
 
     },
 
-    _loadUsersWithPermissions: function(){
-        this.setLoading("Loading Users...");
-        Rally.technicalservices.ModelBuilder.build('User','UserWithPermissions').then({
-            success: function(newModel){
-                var field_names = ['FirstName','LastName','UserName','SubscriptionPermission','Role','__userPermissions'];
-                var store = Ext.create('Rally.data.wsapi.Store',{
-                    model: newModel,
-                    fetch: field_names,
-                    pageSize: 25
-                });
-
-                store.on('load', this._loadPermissions, this);
-                store.load();
-
-                this.setLoading(false);
-                this._buildGrid(store);
-
-
-
-            },
-            scope: this
-        })
-    },
-    _loadPermissions: function(store, records, successful){
-        //Todo: check operation for success and report error if not successful
-        this.logger.log('_loadUserPermissions', records, successful);
-        _.each(records, function(r){
-            r.loadUserPermissions();
-        });
-    },
-    _buildGrid: function(store){
-        this._grid = this.down('#container_body').add({
-            xtype: 'rallygrid',
-            store: store,
-            columnCfgs: [
-                {
-                    text: 'Name', dataIndex: 'FirstName', flex: 1
-                },
-                {
-                    text: 'User Name', dataIndex: 'UserName', flex: 1
-                },
-                {
-                    text: 'Workspace / Project',
-                    dataIndex: '__userPermissions',
-                    minWidth: 400,
-                    flex: 2,
-                    renderer: function(UserPermissions){
-                        ///var text = [];
-                        if(UserPermissions && UserPermissions.length == 0){
-                            return 'NA';
-                        } else {
-                            return UserPermissions.join('<br/>');
-                        }
-                        //_.each(UserPermissions, function(userPermission){
-                        //    text.push(userPermission);
-                        //    //if(userPermission.get('_type') == 'projectpermission' || userPermission.get('_type') == 'workspacepermission' ){
-                        //    //    text.push(userPermission.get('Name') +' - '+userPermission.get('Role') );
-                        //    //}
-                        //});
-                        //return text.join('<br/>');
-                    }
-                },
-                {
-                    text: 'Role', dataIndex: 'Role', flex: 1
-                }]
-
-        });
-
-        this.down('#container_body').add(this._grid);
-
-        this.down('#container_header').add({
-            xtype:'rallybutton',
-            itemId:'export_button',
-            text: 'Download CSV',
-            disabled: false,
-            //iconAlign: 'right',
-            listeners: {
-                scope: this,
-                click: function() {
-                    this._export();
-                }
-            }
-        });
-    },
     _filterStore: function(userNameComboBox){
         var userNameComboBoxValue = userNameComboBox.getRecord().get('UserName');
         console.log(userNameComboBoxValue);
@@ -1062,26 +1120,7 @@ Ext.define("TSApp", {
         });
     } ,
 
-    // _loadWsapiRecords: function(config){
-    //     var deferred = Ext.create('Deft.Deferred');
-    //     var me = this;
-    //     var default_config = {
-    //         model: 'Defect',
-    //         fetch: ['ObjectID']
-    //     };
-    //     this.logger.log("Starting load:",config.model);
-    //     Ext.create('Rally.data.wsapi.Store', Ext.Object.merge(default_config,config)).load({
-    //         callback : function(records, operation, successful) {
-    //             if (successful){
-    //                 deferred.resolve(records);
-    //             } else {
-    //                 me.logger.log("Failed: ", operation);
-    //                 deferred.reject('Problem loading: ' + operation.error.errors.join('. '));
-    //             }
-    //         }
-    //     });
-    //     return deferred.promise;
-    // },
+  
 
     //TODO: this and me are used in code interchangeably - need to cleanup
     _loadAStoreWithAPromise: function(model_name, model_fields){
@@ -1091,27 +1130,27 @@ Ext.define("TSApp", {
 
         
 
-        var selectedUserNameValue = this.down('#nameComboBox').getRecord().get('UserName');   
-        console.log('myFilters',selectedUserNameValue);
-        var myFilters = me._getUserFilter(selectedUserNameValue);
+       // var selectedUserNameValue = this.down('#nameComboBox').getRecord().get('UserName');   
+        //console.log('myFilters',selectedUserNameValue);
+        //var myFilters = me._getUserFilter(selectedUserNameValue);
         //console.log('userNameComboBox',selectedUserNameValue);
         //console.log(myFilters);
-            console.log('myFilters',myFilters);
+        //    console.log('myFilters',myFilters);
 
-        if(this._initial_store){
-            //console.log('store exists',this._initial_store);
-            this._initial_store.clearFilter(true);
-            this._initial_store.load();
-            console.log(this._initial_store);
-            return deferred.promise;
+        // if(this._initial_store){
+        //     //console.log('store exists',this._initial_store);
+        //     this._initial_store.clearFilter(true);
+        //     this._initial_store.load();
+        //     console.log(this._initial_store);
+        //     return deferred.promise;
 
-        } else {
+        // } else {
 
             Ext.create('Rally.data.wsapi.Store', {
                 model: model_name,
                 fetch: model_fields,
                 limit: Infinity
-
+                
             }).load({
                 callback : function(records, operation, successful) {
                     if (successful){
@@ -1119,29 +1158,59 @@ Ext.define("TSApp", {
                         _.each(records, function(result){
                             promises.push(this._getColleciton(result));
                         },this);
+                        console.log('promises>>',promises);
                         Deft.Promise.all(promises).then({
                             success: function(results){
                                 var usersAndPermission = [];
                                 var users = [];
                                 var length = records.length;
-                                for (var i = 0, len = length; i < len; i++) {
-                                    var user = {
-                                        FullName: records[i].get('FirstName') + ' ' +records[i].get('LastName'),
-                                        UserName: records[i].get('UserName'),
-                                        SubscriptionPermission: records[i].get('SubscriptionPermission'),
-                                        UserPermissions: results[i],
-                                        Role: records[i].get('Role')
-                                    }
-                                    users.push(user);
-                                };
+                                //TODO clean up the for loop.
+                                for (var i = 0; records && i < records.length; i++) {
+                                    if(records[i].get('SubscriptionPermission')=='Subscription Admin'){
 
+                                        var user = {
+                                            FullName: records[i].get('FirstName') + ' ' +records[i].get('LastName'),
+                                            UserName: records[i].get('UserName'),
+                                            SubscriptionPermission: records[i].get('SubscriptionPermission'),
+                                            UserPermission: null,
+                                            Role: records[i].get('Role')
+                                        }
+                                        users.push(user);
+                                        continue;
+
+                                    }
+
+                                    var permissionArr = results[i];
+
+                                    if(permissionArr && permissionArr.length > 0){
+                                       for (var j = 0; permissionArr && j < permissionArr.length; j++) {
+                                            var user = {
+                                                FullName: records[i].get('FirstName') + ' ' +records[i].get('LastName'),
+                                                UserName: records[i].get('UserName'),
+                                                SubscriptionPermission: records[i].get('SubscriptionPermission'),
+                                                UserPermission: permissionArr[j],
+                                                Role: records[i].get('Role')
+                                            }
+                                            users.push(user);
+                                        }
+
+                                    }else{
+                                        var user = {
+                                            FullName: records[i].get('FirstName') + ' ' +records[i].get('LastName'),
+                                            UserName: records[i].get('UserName'),
+                                            SubscriptionPermission: records[i].get('SubscriptionPermission'),
+                                            UserPermission: null,
+                                            Role: records[i].get('Role')
+                                        }
+                                        users.push(user);
+                                    }
+
+                                }
+                                console.log('UserS >>',users);
                                 // create custom store (call function ) combine permissions and results in to one.
                                 var store = Ext.create('Rally.data.custom.Store', {
                                     data: users,
-                                    scope: this,
-                                    filters: myFilters,
-                                    remoteFilter: true,
-                                    pageSize:100
+                                    scope: this
                                 });
                                 me._initial_store = store;
                                 console.log('Initial store',store);    
@@ -1156,53 +1225,97 @@ Ext.define("TSApp", {
                 scope: me
             });
             return deferred.promise;
-            }
+            // }
     },
 
     _getColleciton: function(record){
         var deferred = Ext.create('Deft.Deferred');
-                        record.getCollection('UserPermissions').load({
-                                        fetch: ['Role', 'Name', '_type'],
-                                        callback: function(records, operation, success) {
-                                            deferred.resolve(records);
-                                        }
-
+                            record.getCollection('UserPermissions').load({
+                                fetch: ['Role', 'Name', '_type','Workspace','Project'],
+                                callback: function(records, operation, success) {
+                                    deferred.resolve(records);
+                            }
                         });        
-
         return deferred;
     },
 
     _displayGrid: function(store){
-
+      console.log('store before createing the grid',store);
       this._grid = this.down('#container_body').add({
             xtype: 'rallygrid',
             store: store,
+            //showPagingToolbar: false,
             columnCfgs: [
                 {
-                   text: 'Name', dataIndex: 'FullName'
+                    text: 'Name', 
+                    dataIndex: 'FullName',
+                    flex: 1
                 },
                 {
-                   text: 'User Name', dataIndex: 'UserName'
+                    text: 'User Name', 
+                    dataIndex: 'UserName',
+                    flex: 2
+
                 },
                 {
-                    text: 'Workspace / Project',dataIndex: 'UserPermissions', minWidth: 400, renderer: function(UserPermissions){
+                    text: 'Workspace',
+                    dataIndex: 'UserPermission',
+                    flex: 1,
+                    renderer: function(UserPermission){
                         var text = [];
-                        if(UserPermissions.length == 0){
+                        if(UserPermission){
+                            if (UserPermission.get('_type') == 'workspacepermission' ){
+                                text.push(UserPermission.get('Name'));
+                            }
+                        }else{
                             text.push('NA');
                         }
-                        _.each(UserPermissions, function(userPermission){
-                             if(userPermission.get('_type') == 'projectpermission' || userPermission.get('_type') == 'workspacepermission' ){
-                                text.push(userPermission.get('Name') +' - '+userPermission.get('Role') );
-                             }
-                        });
-                        return text.join('<br/>');
+
+                        return text;
                     }
                 },
                 {
-                    text: 'Subscription Permission', dataIndex: 'SubscriptionPermission'
+                    text: 'Project',
+                    dataIndex: 'UserPermission',
+                    flex: 1,
+                    renderer: function(UserPermission){
+                        var text = [];
+                        if(UserPermission){
+                            if(UserPermission.get('_type') == 'projectpermission' ){
+                                text.push(UserPermission.get('Name'));
+                            }
+                        }else{
+                            text.push('NA');
+                        }
+
+                        return text;
+                    }
                 },
                 {
-                    text: 'Role', dataIndex: 'Role'
+                    text: 'Role',
+                    dataIndex: 'UserPermission',
+                    flex: 1,
+                    renderer: function(UserPermission){
+                        var text = [];
+                        if(UserPermission){
+                            if(UserPermission.get('_type') == 'projectpermission' || UserPermission.get('_type') == 'workspacepermission' ){
+                             text.push(UserPermission.get('Role') );
+                            }else{
+                            text.push('NA');
+                            }
+
+                        }else{
+                            text.push('NA');
+                        }
+
+
+                        return text;
+                    }
+                },
+                {
+                    text: 'Subscription Permission', 
+                    dataIndex: 'SubscriptionPermission',
+                    flex: 1
                 }
                 
             ]
@@ -1216,13 +1329,14 @@ Ext.define("TSApp", {
             itemId:'export_button',
             text: 'Download CSV',
             disabled: false,
-            //iconAlign: 'right',
+            iconAlign: 'right',
             listeners: {
                 scope: this,
                 click: function() {
                     this._export();
                 }
-            }
+            },
+            scope: this
         });
         
     },
@@ -1253,16 +1367,11 @@ Ext.define("TSApp", {
         return filter;
     },
 
-
-    _onClickExport:function(grid){
-        var data = this._getCSV(grid);
-        window.location = 'data:text/csv;charset=utf8,' + encodeURIComponent(data);
-    },
-    
+   
     _export: function(){
         var grid = this.down('rallygrid');
         var me = this;
-        console.log('csv grid',grid);
+
         if ( !grid ) { return; }
         
         this.logger.log('_export',grid);
@@ -1271,7 +1380,7 @@ Ext.define("TSApp", {
 
         this.setLoading("Generating CSV");
         Deft.Chain.sequence([
-            function() { return Rally.technicalservices.FileUtilities.getCSVFromGrid(this,grid) } 
+            function() { return Rally.technicalservices.FileUtilities._getCSVFromCustomBackedGrid(grid) } 
         ]).then({
             scope: this,
             success: function(csv){
