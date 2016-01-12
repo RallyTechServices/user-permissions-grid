@@ -20,11 +20,11 @@ Ext.define("TSApp", {
     },
                         
     launch: function() {
-        //this._myMask = new Ext.LoadMask(Ext.getBody(), {msg:"Please wait.This may take long depending on the size of your data..."});
-        //this._myMask.show();
+        this._myMask = new Ext.LoadMask(Ext.getBody(), {msg:"Please wait.This may take long depending on the size of your data..."});
+        this._myMask.show();
         var me = this;
-
-        me._loadByName();
+        me.setLoading("Loading stuff...");
+        me._loadAStoreWithAPromiseWithModel();
     },
     
     _loadByName: function(){
@@ -36,9 +36,8 @@ Ext.define("TSApp", {
                 labelAlign: 'right',
                 allowClear : true,
                 listeners: {
-                    select: me._filterWsapiStore,
-                    //ready: me._loadAStoreWithAPromiseWithModel,
-                    ready: me._loadUsersWithPermissions,
+                    select: me._filterStore,
+                    ready: me._loadAStoreWithAPromiseWithModel,
                     scope: me
                 }
         });
@@ -46,90 +45,6 @@ Ext.define("TSApp", {
 
     },
 
-    _loadUsersWithPermissions: function(){
-        this.setLoading("Loading Users...");
-        Rally.technicalservices.ModelBuilder.build('User','UserWithPermissions').then({
-            success: function(newModel){
-                var field_names = ['FirstName','LastName','UserName','SubscriptionPermission','Role','__userPermissions'];
-                var store = Ext.create('Rally.data.wsapi.Store',{
-                    model: newModel,
-                    fetch: field_names,
-                    pageSize: 25
-                });
-
-                store.on('load', this._loadPermissions, this);
-                store.load();
-
-                this.setLoading(false);
-                this._buildGrid(store);
-
-
-
-            },
-            scope: this
-        })
-    },
-    _loadPermissions: function(store, records, successful){
-        //Todo: check operation for success and report error if not successful
-        this.logger.log('_loadUserPermissions', records, successful);
-        _.each(records, function(r){
-            r.loadUserPermissions();
-        });
-    },
-    _buildGrid: function(store){
-        this._grid = this.down('#container_body').add({
-            xtype: 'rallygrid',
-            store: store,
-            columnCfgs: [
-                {
-                    text: 'Name', dataIndex: 'FirstName', flex: 1
-                },
-                {
-                    text: 'User Name', dataIndex: 'UserName', flex: 1
-                },
-                {
-                    text: 'Workspace / Project',
-                    dataIndex: '__userPermissions',
-                    minWidth: 400,
-                    flex: 2,
-                    renderer: function(UserPermissions){
-                        ///var text = [];
-                        if(UserPermissions && UserPermissions.length == 0){
-                            return 'NA';
-                        } else {
-                            return UserPermissions.join('<br/>');
-                        }
-                        //_.each(UserPermissions, function(userPermission){
-                        //    text.push(userPermission);
-                        //    //if(userPermission.get('_type') == 'projectpermission' || userPermission.get('_type') == 'workspacepermission' ){
-                        //    //    text.push(userPermission.get('Name') +' - '+userPermission.get('Role') );
-                        //    //}
-                        //});
-                        //return text.join('<br/>');
-                    }
-                },
-                {
-                    text: 'Role', dataIndex: 'Role', flex: 1
-                }]
-
-        });
-
-        this.down('#container_body').add(this._grid);
-
-        this.down('#container_header').add({
-            xtype:'rallybutton',
-            itemId:'export_button',
-            text: 'Download CSV',
-            disabled: false,
-            //iconAlign: 'right',
-            listeners: {
-                scope: this,
-                click: function() {
-                    this._export();
-                }
-            }
-        });
-    },
     _filterStore: function(userNameComboBox){
         var userNameComboBoxValue = userNameComboBox.getRecord().get('UserName');
         console.log(userNameComboBoxValue);
@@ -171,26 +86,7 @@ Ext.define("TSApp", {
         });
     } ,
 
-    // _loadWsapiRecords: function(config){
-    //     var deferred = Ext.create('Deft.Deferred');
-    //     var me = this;
-    //     var default_config = {
-    //         model: 'Defect',
-    //         fetch: ['ObjectID']
-    //     };
-    //     this.logger.log("Starting load:",config.model);
-    //     Ext.create('Rally.data.wsapi.Store', Ext.Object.merge(default_config,config)).load({
-    //         callback : function(records, operation, successful) {
-    //             if (successful){
-    //                 deferred.resolve(records);
-    //             } else {
-    //                 me.logger.log("Failed: ", operation);
-    //                 deferred.reject('Problem loading: ' + operation.error.errors.join('. '));
-    //             }
-    //         }
-    //     });
-    //     return deferred.promise;
-    // },
+  
 
     //TODO: this and me are used in code interchangeably - need to cleanup
     _loadAStoreWithAPromise: function(model_name, model_fields){
@@ -200,27 +96,27 @@ Ext.define("TSApp", {
 
         
 
-        var selectedUserNameValue = this.down('#nameComboBox').getRecord().get('UserName');   
-        console.log('myFilters',selectedUserNameValue);
-        var myFilters = me._getUserFilter(selectedUserNameValue);
+       // var selectedUserNameValue = this.down('#nameComboBox').getRecord().get('UserName');   
+        //console.log('myFilters',selectedUserNameValue);
+        //var myFilters = me._getUserFilter(selectedUserNameValue);
         //console.log('userNameComboBox',selectedUserNameValue);
         //console.log(myFilters);
-            console.log('myFilters',myFilters);
+        //    console.log('myFilters',myFilters);
 
-        if(this._initial_store){
-            //console.log('store exists',this._initial_store);
-            this._initial_store.clearFilter(true);
-            this._initial_store.load();
-            console.log(this._initial_store);
-            return deferred.promise;
+        // if(this._initial_store){
+        //     //console.log('store exists',this._initial_store);
+        //     this._initial_store.clearFilter(true);
+        //     this._initial_store.load();
+        //     console.log(this._initial_store);
+        //     return deferred.promise;
 
-        } else {
+        // } else {
 
             Ext.create('Rally.data.wsapi.Store', {
                 model: model_name,
                 fetch: model_fields,
                 limit: Infinity
-
+                
             }).load({
                 callback : function(records, operation, successful) {
                     if (successful){
@@ -228,29 +124,59 @@ Ext.define("TSApp", {
                         _.each(records, function(result){
                             promises.push(this._getColleciton(result));
                         },this);
+                        console.log('promises>>',promises);
                         Deft.Promise.all(promises).then({
                             success: function(results){
                                 var usersAndPermission = [];
                                 var users = [];
                                 var length = records.length;
-                                for (var i = 0, len = length; i < len; i++) {
-                                    var user = {
-                                        FullName: records[i].get('FirstName') + ' ' +records[i].get('LastName'),
-                                        UserName: records[i].get('UserName'),
-                                        SubscriptionPermission: records[i].get('SubscriptionPermission'),
-                                        UserPermissions: results[i],
-                                        Role: records[i].get('Role')
-                                    }
-                                    users.push(user);
-                                };
+                                //TODO clean up the for loop.
+                                for (var i = 0; records && i < records.length; i++) {
+                                    if(records[i].get('SubscriptionPermission')=='Subscription Admin'){
 
+                                        var user = {
+                                            FullName: records[i].get('FirstName') + ' ' +records[i].get('LastName'),
+                                            UserName: records[i].get('UserName'),
+                                            SubscriptionPermission: records[i].get('SubscriptionPermission'),
+                                            UserPermission: null,
+                                            Role: records[i].get('Role')
+                                        }
+                                        users.push(user);
+                                        continue;
+
+                                    }
+
+                                    var permissionArr = results[i];
+
+                                    if(permissionArr && permissionArr.length > 0){
+                                       for (var j = 0; permissionArr && j < permissionArr.length; j++) {
+                                            var user = {
+                                                FullName: records[i].get('FirstName') + ' ' +records[i].get('LastName'),
+                                                UserName: records[i].get('UserName'),
+                                                SubscriptionPermission: records[i].get('SubscriptionPermission'),
+                                                UserPermission: permissionArr[j],
+                                                Role: records[i].get('Role')
+                                            }
+                                            users.push(user);
+                                        }
+
+                                    }else{
+                                        var user = {
+                                            FullName: records[i].get('FirstName') + ' ' +records[i].get('LastName'),
+                                            UserName: records[i].get('UserName'),
+                                            SubscriptionPermission: records[i].get('SubscriptionPermission'),
+                                            UserPermission: null,
+                                            Role: records[i].get('Role')
+                                        }
+                                        users.push(user);
+                                    }
+
+                                }
+                                console.log('UserS >>',users);
                                 // create custom store (call function ) combine permissions and results in to one.
                                 var store = Ext.create('Rally.data.custom.Store', {
                                     data: users,
-                                    scope: this,
-                                    filters: myFilters,
-                                    remoteFilter: true,
-                                    pageSize:100
+                                    scope: this
                                 });
                                 me._initial_store = store;
                                 console.log('Initial store',store);    
@@ -265,53 +191,97 @@ Ext.define("TSApp", {
                 scope: me
             });
             return deferred.promise;
-            }
+            // }
     },
 
     _getColleciton: function(record){
         var deferred = Ext.create('Deft.Deferred');
-                        record.getCollection('UserPermissions').load({
-                                        fetch: ['Role', 'Name', '_type'],
-                                        callback: function(records, operation, success) {
-                                            deferred.resolve(records);
-                                        }
-
+                            record.getCollection('UserPermissions').load({
+                                fetch: ['Role', 'Name', '_type','Workspace','Project'],
+                                callback: function(records, operation, success) {
+                                    deferred.resolve(records);
+                            }
                         });        
-
         return deferred;
     },
 
     _displayGrid: function(store){
-
+      console.log('store before createing the grid',store);
       this._grid = this.down('#container_body').add({
             xtype: 'rallygrid',
             store: store,
+            //showPagingToolbar: false,
             columnCfgs: [
                 {
-                   text: 'Name', dataIndex: 'FullName'
+                    text: 'Name', 
+                    dataIndex: 'FullName',
+                    flex: 1
                 },
                 {
-                   text: 'User Name', dataIndex: 'UserName'
+                    text: 'User Name', 
+                    dataIndex: 'UserName',
+                    flex: 2
+
                 },
                 {
-                    text: 'Workspace / Project',dataIndex: 'UserPermissions', minWidth: 400, renderer: function(UserPermissions){
+                    text: 'Workspace',
+                    dataIndex: 'UserPermission',
+                    flex: 1,
+                    renderer: function(UserPermission){
                         var text = [];
-                        if(UserPermissions.length == 0){
+                        if(UserPermission){
+                            if (UserPermission.get('_type') == 'workspacepermission' ){
+                                text.push(UserPermission.get('Name'));
+                            }
+                        }else{
                             text.push('NA');
                         }
-                        _.each(UserPermissions, function(userPermission){
-                             if(userPermission.get('_type') == 'projectpermission' || userPermission.get('_type') == 'workspacepermission' ){
-                                text.push(userPermission.get('Name') +' - '+userPermission.get('Role') );
-                             }
-                        });
-                        return text.join('<br/>');
+
+                        return text;
                     }
                 },
                 {
-                    text: 'Subscription Permission', dataIndex: 'SubscriptionPermission'
+                    text: 'Project',
+                    dataIndex: 'UserPermission',
+                    flex: 1,
+                    renderer: function(UserPermission){
+                        var text = [];
+                        if(UserPermission){
+                            if(UserPermission.get('_type') == 'projectpermission' ){
+                                text.push(UserPermission.get('Name'));
+                            }
+                        }else{
+                            text.push('NA');
+                        }
+
+                        return text;
+                    }
                 },
                 {
-                    text: 'Role', dataIndex: 'Role'
+                    text: 'Role',
+                    dataIndex: 'UserPermission',
+                    flex: 1,
+                    renderer: function(UserPermission){
+                        var text = [];
+                        if(UserPermission){
+                            if(UserPermission.get('_type') == 'projectpermission' || UserPermission.get('_type') == 'workspacepermission' ){
+                             text.push(UserPermission.get('Role') );
+                            }else{
+                            text.push('NA');
+                            }
+
+                        }else{
+                            text.push('NA');
+                        }
+
+
+                        return text;
+                    }
+                },
+                {
+                    text: 'Subscription Permission', 
+                    dataIndex: 'SubscriptionPermission',
+                    flex: 1
                 }
                 
             ]
@@ -325,13 +295,14 @@ Ext.define("TSApp", {
             itemId:'export_button',
             text: 'Download CSV',
             disabled: false,
-            //iconAlign: 'right',
+            iconAlign: 'right',
             listeners: {
                 scope: this,
                 click: function() {
                     this._export();
                 }
-            }
+            },
+            scope: this
         });
         
     },
@@ -362,16 +333,11 @@ Ext.define("TSApp", {
         return filter;
     },
 
-
-    _onClickExport:function(grid){
-        var data = this._getCSV(grid);
-        window.location = 'data:text/csv;charset=utf8,' + encodeURIComponent(data);
-    },
-    
+   
     _export: function(){
         var grid = this.down('rallygrid');
         var me = this;
-        console.log('csv grid',grid);
+
         if ( !grid ) { return; }
         
         this.logger.log('_export',grid);
@@ -380,7 +346,7 @@ Ext.define("TSApp", {
 
         this.setLoading("Generating CSV");
         Deft.Chain.sequence([
-            function() { return Rally.technicalservices.FileUtilities.getCSVFromGrid(this,grid) } 
+            function() { return Rally.technicalservices.FileUtilities._getCSVFromCustomBackedGrid(grid) } 
         ]).then({
             scope: this,
             success: function(csv){

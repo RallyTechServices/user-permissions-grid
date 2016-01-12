@@ -20,14 +20,33 @@ Ext.define('Rally.technicalservices.ModelBuilder',{
                     extend: model,
                     logger: new Rally.technicalservices.Logger(),
                     fields: default_fields,
+                    scope:this,
                     loadUserPermissions: function() {
-                        this.logger.log('loadUserPermissions', this.get('UserName'), this);
+                        //this.logger.log('loadUserPermissions', this.get('UserName'), this);
                         //This is where we set the new user permissions
                         //this.myLoadPermissionsfunctionwithapromise().then(assign the permissions to the userpermission field)
+                        this._getColleciton(this).then({
+                            scope: this,
+                            success: function(records){
+                                this.set('__userPermissions', records);
+                            },
+                            failure: function(){
 
+                            }
+                        }
+                        );
 
-                        this.set('__userPermissions', ['Permissions1','Permissions2','Permissions3']);
+                    },
+                    _getColleciton: function(record){
+                        var deferred = Ext.create('Deft.Deferred');
+                                record.getCollection('UserPermissions').load({
+                                        fetch: ['Role', 'Name', '_type'],
+                                        callback: function(records, operation, success) {
+                                            deferred.resolve(records);
+                                        }
 
+                                });   
+                        return deferred;
                     }
 
                 });
@@ -36,7 +55,9 @@ Ext.define('Rally.technicalservices.ModelBuilder',{
                  */
 
                 deferred.resolve(new_model);
-            }
+            },
+
+            
         });
         return deferred;
     }

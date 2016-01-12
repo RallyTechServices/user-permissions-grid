@@ -107,34 +107,152 @@ Ext.define('Rally.technicalservices.FileUtilities', {
         });
         return deferred.promise;
     },
+
+    // custom grid assumes there store is fully loaded
+    _getCSVFromCustomBackedGridWithPaging: function(grid) {
+        var deferred = Ext.create('Deft.Deferred');
+
+
+        var store = Ext.create('Rally.data.custom.Store',{
+            model: grid.getStore().config.model,
+            filters: grid.getStore().config.filters,
+            limit:Infinity,
+            pageSize: Infinity
+        });
+
+        var columns = grid.columns;
+        var headers = this._getHeadersFromGrid(grid);
+        var column_names = this._getColumnNamesFromGrid(grid);
+        
+        var record_count = grid.getStore().getTotalCount(),
+            page_size = grid.getStore().pageSize,
+            pages = Math.ceil(record_count/page_size),
+            promises = [];
+
+        // for (var page = 1; page <= pages; page ++ ) {
+        //     promises.push(this.loadStorePage(grid, store, columns, page, pages));
+        // }
+
+        promises.push(this.loadStorePage(grid, store, columns, page, pages));
+
+        Deft.Promise.all(promises).then({
+            success: function(csvs){
+                var csv = [];
+                csv.push('"' + headers.join('","') + '"');
+                _.each(csvs, function(c){
+                    _.each(c, function(line){
+                        csv.push(line);
+                    });
+                });
+                csv = csv.join('\r\n');
+                deferred.resolve(csv);
+                Rally.getApp().setLoading(false);
+            }
+        });
+        return deferred.promise;
+
+        // var headers = this._getHeadersFromGrid(grid);
+        
+        // var columns = grid.columns;
+        // var column_names = this._getColumnNamesFromGrid(grid);
+
+       
+        // var csv = [];
+        // csv.push('"' + headers.join('","') + '"');
+
+        // var number_of_records = store.getTotalCount();
+        
+        // this.logger.log("Number of records to export:", number_of_records);
+        
+        // for (var i = 0; i < number_of_records; i++) {
+        //     var record = store.getAt(i);
+        //     if ( ! record ) {
+        //         this.logger.log("Number or lines in CSV:", csv.length);
+        //         return csv.join('\r\n');            }
+        //     csv.push( this._getCSVFromRecord(record, grid, store) );
+        // }
+        
+        // this.logger.log("Number or lines in CSV:", csv.length);
+        // return csv.join('\r\n');
+    },
+
     
     // custom grid assumes there store is fully loaded
     _getCSVFromCustomBackedGrid: function(grid) {
-        var headers = this._getHeadersFromGrid(grid);
-        
-        var columns = grid.columns;
-        var column_names = this._getColumnNamesFromGrid(grid);
-        var store = grid.getStore();
-        
-        var csv = [];
-        csv.push('"' + headers.join('","') + '"');
+    var deferred = Ext.create('Deft.Deferred');
+            var me = this;
+            
+            Rally.getApp().setLoading("Assembling data for export...");
+            
+            var headers = this._getHeadersFromGrid(grid);
+            var store = Ext.clone( grid.getStore() );
+            var columns = grid.columns;
+            var column_names = this._getColumnNamesFromGrid(grid);
+            
+            var record_count = grid.getStore().getTotalCount();
+            var original_page_size = grid.getStore().pageSize;
+            
+            var page_size = 20000;
+            var number_of_pages = Math.ceil(record_count/page_size);
+            store.pageSize = page_size;
+            
+            var pages = [],
+                promises = [];
 
-        var number_of_records = store.getTotalCount();
-        
-        this.logger.log("Number of records to export:", number_of_records);
-        
-        for (var i = 0; i < number_of_records; i++) {
-            var record = store.getAt(i);
-            if ( ! record ) {
-                this.logger.log("Number or lines in CSV:", csv.length);
-                return csv.join('\r\n');            }
-            csv.push( this._getCSVFromRecord(record, grid, store) );
-        }
-        
-        this.logger.log("Number or lines in CSV:", csv.length);
-        return csv.join('\r\n');
+            for (var page = 1; page <= number_of_pages; page ++ ) {
+                pages.push(page);
+            }
+            
+            Ext.Array.each(pages, function(page) {
+                promises.push(function() { return me._loadStorePage(grid, store, columns, page, pages.length )} );
+            });
+            
+            Deft.Chain.sequence(promises).then({
+                success: function(csvs){
+
+                    // set page back to last view
+                    store.pageSize = original_page_size;
+                    store.loadPage(1);
+                    
+                    var csv = [];
+                    csv.push('"' + headers.join('","') + '"');
+                    _.each(csvs, function(c){
+                        _.each(c, function(line){
+                            csv.push(line);
+                        });
+                    });
+                    csv = csv.join('\r\n');
+                    deferred.resolve(csv);
+                    Rally.getApp().setLoading(false);
+                }
+            });
+            
+            return deferred.promise;
     },
     
+
+
+    _loadStorePage: function(grid, store, columns, page, total_pages){
+        var deferred = Ext.create('Deft.Deferred');
+
+        //this.logger.log("_loadStorePage", page, " of ", total_pages);
+        
+        store.loadPage(page, {
+            callback: function (records) {
+                Rally.getApp().setLoading(Ext.String.format('Page {0} of {1}',page, total_pages));
+                var csv = [];
+                for (var i = 0; i < records.length; i++) {
+                    var record = records[i];
+                    csv.push( this._getCSVFromRecord(record, grid, store) );
+                }
+                deferred.resolve(csv);
+            },
+            scope: this
+        });
+        return deferred.promise;
+    },
+
+
     _getHeadersFromGrid: function(grid) {
         var headers = [];        
         var columns = grid.columns;
@@ -177,12 +295,15 @@ Ext.define('Rally.technicalservices.FileUtilities', {
         
         return this._getCSVFromCustomBackedGrid(grid);
     },
+
     loadStorePage: function(grid, store, columns, page, total_pages){
+        console.log('Inside loadStorePage');
         var deferred = Ext.create('Deft.Deferred');
         this.logger.log('loadStorePage',page, total_pages);
 
         store.loadPage(page, {
-            callback: function (records) {
+            callback: function (records, operation, success) {
+                //console.log(' page records length',records.length,'success',success);
                 var csv = [];
                 Rally.getApp().setLoading(Ext.String.format('Page {0} of {1} loaded',page, total_pages));
                 for (var i = 0; i < records.length; i++) {
@@ -214,7 +335,7 @@ Ext.define('Rally.technicalservices.FileUtilities', {
         
         var node_values = [];
         var columns = grid.columns;
-        
+        //console.log('inside _getCSVFromRecord');
         Ext.Array.each(columns, function (column) {
             if (column.xtype != 'rallyrowactioncolumn') {
                 if (column.dataIndex) {
@@ -244,6 +365,7 @@ Ext.define('Rally.technicalservices.FileUtilities', {
 
             }
         }, this);
+        //console.log('Node values',node_values);
         return '"' + node_values.join('","') + '"';
     }
 
