@@ -24,57 +24,10 @@ Ext.define("TSApp", {
         this._myMask.show();
         var me = this;
         me.setLoading("Loading stuff...");
-        me._loadAStoreWithAPromiseWithModel();
-    },
-    
-    _loadByName: function(){
-        var me = this;
-
-        userNameComboBox = Ext.create('Rally.ui.combobox.UserSearchComboBox', {
-                itemId: 'nameComboBox',
-                fieldLabel: 'Filter By User',
-                labelAlign: 'right',
-                allowClear : true,
-                listeners: {
-                    select: me._filterStore,
-                    ready: me._loadAStoreWithAPromiseWithModel,
-                    scope: me
-                }
-        });
-        me.down('#container_header').add(userNameComboBox);
-
-    },
-
-    _filterStore: function(userNameComboBox){
-        var userNameComboBoxValue = userNameComboBox.getRecord().get('UserName');
-        console.log(userNameComboBoxValue);
-        var localGrid = this.down('rallygrid');
-        if(localGrid){
-            var store = localGrid.getStore();
-            store.filterBy(function(record){
-                console.log('Filter By',record.get('UserName'),userNameComboBoxValue);
-                    console.log(record.get('UserName') == userNameComboBoxValue);
-
-                if(record.get('UserName') == userNameComboBoxValue){
-                    console.log('Before returning');
-                    return true;
-                }else
-                {
-                    return false;
-                }
-            });
-        }
-    },
-
-    _loadAStoreWithAPromiseWithModel: function(){
-        var me = this;
-        var model_name = 'User',
-            field_names = ['FirstName','LastName','UserName','SubscriptionPermission','Role'];
-        
-        this._loadAStoreWithAPromise(model_name, field_names).then({
+        this._loadAllStoresAndProcessData().then({
             scope: this,
             success: function(store) {
-                //console.log('store on succe',store);
+                console.log('store on succe',store);
                 this._myMask.hide();
                 this._displayGrid(store);
             },
@@ -84,126 +37,8 @@ Ext.define("TSApp", {
         }).always(function() {
             me.setLoading(false);
         });
-    } ,
-
-  
-
-    //TODO: this and me are used in code interchangeably - need to cleanup
-    _loadAStoreWithAPromise: function(model_name, model_fields){
-        var deferred = Ext.create('Deft.Deferred');
-        var me = this;
-        me.logger.log("Starting load:",model_name,model_fields);
-
-        
-
-       // var selectedUserNameValue = this.down('#nameComboBox').getRecord().get('UserName');   
-        //console.log('myFilters',selectedUserNameValue);
-        //var myFilters = me._getUserFilter(selectedUserNameValue);
-        //console.log('userNameComboBox',selectedUserNameValue);
-        //console.log(myFilters);
-        //    console.log('myFilters',myFilters);
-
-        // if(this._initial_store){
-        //     //console.log('store exists',this._initial_store);
-        //     this._initial_store.clearFilter(true);
-        //     this._initial_store.load();
-        //     console.log(this._initial_store);
-        //     return deferred.promise;
-
-        // } else {
-
-            Ext.create('Rally.data.wsapi.Store', {
-                model: model_name,
-                fetch: model_fields,
-                limit: Infinity
-                
-            }).load({
-                callback : function(records, operation, successful) {
-                    if (successful){
-                        var promises = [];
-                        _.each(records, function(result){
-                            promises.push(this._getColleciton(result));
-                        },this);
-                        console.log('promises>>',promises);
-                        Deft.Promise.all(promises).then({
-                            success: function(results){
-                                var usersAndPermission = [];
-                                var users = [];
-                                var length = records.length;
-                                //TODO clean up the for loop.
-                                for (var i = 0; records && i < records.length; i++) {
-                                    if(records[i].get('SubscriptionPermission')=='Subscription Admin'){
-
-                                        var user = {
-                                            FullName: records[i].get('FirstName') + ' ' +records[i].get('LastName'),
-                                            UserName: records[i].get('UserName'),
-                                            SubscriptionPermission: records[i].get('SubscriptionPermission'),
-                                            UserPermission: null,
-                                            Role: records[i].get('Role')
-                                        }
-                                        users.push(user);
-                                        continue;
-
-                                    }
-
-                                    var permissionArr = results[i];
-
-                                    if(permissionArr && permissionArr.length > 0){
-                                       for (var j = 0; permissionArr && j < permissionArr.length; j++) {
-                                            var user = {
-                                                FullName: records[i].get('FirstName') + ' ' +records[i].get('LastName'),
-                                                UserName: records[i].get('UserName'),
-                                                SubscriptionPermission: records[i].get('SubscriptionPermission'),
-                                                UserPermission: permissionArr[j],
-                                                Role: records[i].get('Role')
-                                            }
-                                            users.push(user);
-                                        }
-
-                                    }else{
-                                        var user = {
-                                            FullName: records[i].get('FirstName') + ' ' +records[i].get('LastName'),
-                                            UserName: records[i].get('UserName'),
-                                            SubscriptionPermission: records[i].get('SubscriptionPermission'),
-                                            UserPermission: null,
-                                            Role: records[i].get('Role')
-                                        }
-                                        users.push(user);
-                                    }
-
-                                }
-                                console.log('UserS >>',users);
-                                // create custom store (call function ) combine permissions and results in to one.
-                                var store = Ext.create('Rally.data.custom.Store', {
-                                    data: users,
-                                    scope: this
-                                });
-                                me._initial_store = store;
-                                console.log('Initial store',store);    
-                                deferred.resolve(store);                        
-                            }
-                        });
-                    } else {
-                        me.logger.log("Failed: ", operation);
-                        deferred.reject('Problem loading: ' + operation.error.errors.join('. '));
-                    }
-                },
-                scope: me
-            });
-            return deferred.promise;
-            // }
     },
-
-    _getColleciton: function(record){
-        var deferred = Ext.create('Deft.Deferred');
-                            record.getCollection('UserPermissions').load({
-                                fetch: ['Role', 'Name', '_type','Workspace','Project'],
-                                callback: function(records, operation, success) {
-                                    deferred.resolve(records);
-                            }
-                        });        
-        return deferred;
-    },
+    
 
     _displayGrid: function(store){
       console.log('store before createing the grid',store);
@@ -230,9 +65,9 @@ Ext.define("TSApp", {
                     renderer: function(UserPermission){
                         var text = [];
                         if(UserPermission){
-                            if (UserPermission.get('_type') == 'workspacepermission' ){
-                                text.push(UserPermission.get('Name'));
-                            }
+                            //if (UserPermission.get('_type') == 'workspacepermission' ){
+                                text.push(UserPermission.get('Workspace').Name);
+                            //}
                         }else{
                             text.push('NA');
                         }
@@ -247,8 +82,8 @@ Ext.define("TSApp", {
                     renderer: function(UserPermission){
                         var text = [];
                         if(UserPermission){
-                            if(UserPermission.get('_type') == 'projectpermission' ){
-                                text.push(UserPermission.get('Name'));
+                            if(UserPermission.get('Project')){
+                                text.push(UserPermission.get('Project').Name);
                             }
                         }else{
                             text.push('NA');
@@ -282,6 +117,16 @@ Ext.define("TSApp", {
                     text: 'Subscription Permission', 
                     dataIndex: 'SubscriptionPermission',
                     flex: 1
+                },
+                {
+                    text: 'Creation Date', 
+                    dataIndex: 'CreationDate',
+                    flex: 1
+                },
+                {
+                    text: 'Last Login Date', 
+                    dataIndex: 'LastLoginDate',
+                    flex: 1
                 }
                 
             ]
@@ -306,33 +151,6 @@ Ext.define("TSApp", {
         });
         
     },
-
-    // _getUserFilter: function(selectedUserNameValue) {
-    //     console.log('Inside _getUserFilter' ,selectedUserNameValue);
-    //     if(!selectedUserNameValue){
-    //         return {};
-    //     }else{
-    //         return Ext.create('Rally.data.wsapi.Filter', {
-    //             property: 'UserName',
-    //             operator: '=',
-    //             value: selectedUserNameValue
-    //          });
-    //     }    
-    // },
-
-    _getUserFilter: function(selectedUserNameValue) {
-        var filter = [];
-
-        if (selectedUserNameValue) {
-            filter.push({
-                property: 'UserName',                                 
-                operator: '=',
-                value: selectedUserNameValue
-            });
-        }
-        return filter;
-    },
-
    
     _export: function(){
         var grid = this.down('rallygrid');
@@ -382,5 +200,139 @@ Ext.define("TSApp", {
     onSettingsUpdate: function (settings){
         this.logger.log('onSettingsUpdate',settings);
         this.launch();
+    },
+
+ _loadAllStoresAndProcessData: function(){
+        var me = this;
+        //get All users
+        console.log('Inside _loadAllStoresAndProcessData');
+        var deferred = Ext.create('Deft.Deferred');
+
+        //Deft.Chain.sequence
+        Deft.Promise.all([me._getAllUsers(), me._getAllWorkspaces(), me._getAllProjects()]).then({
+            success: function(results){
+                console.log('All arrays',results);
+                var users = []
+                _.each(results[0],function(user){
+
+                    if((user.get('SubscriptionPermission')=='Subscription Admin') || (user.get('SubscriptionPermission')=='No Access')){
+                            var userWithPermission = {
+                                FullName: user.get('FirstName') + ' ' +user.get('LastName'),
+                                UserName: user.get('UserName'),
+                                SubscriptionPermission: user.get('SubscriptionPermission'),
+                                Role: user.get('Role'),
+                                CreationDate: user.get('CreationDate'),
+                                LastLoginDate: user.get('LastLoginDate'),
+                                UserPermission: null
+                            }
+                            users.push(userWithPermission);
+                            return;
+                    }
+
+
+                    _.each(results[1],function(workspace){
+                        if(user.get('ObjectID')==workspace.get('User').ObjectID){
+                            var userWithPermission = {
+                                FullName: user.get('FirstName') + ' ' +user.get('LastName'),
+                                UserName: user.get('UserName'),
+                                SubscriptionPermission: user.get('SubscriptionPermission'),
+                                Role: user.get('Role'),
+                                CreationDate: user.get('CreationDate'),
+                                LastLoginDate: user.get('LastLoginDate'),
+                                UserPermission: workspace
+                            }
+                            users.push(userWithPermission);
+                        }
+                    });
+
+                    //match any projects to user
+                    _.each(results[2],function(project){
+                        if(user.get('ObjectID')==project.get('User').ObjectID){
+                            var userWithPermission = {
+                                FullName: user.get('FirstName') + ' ' +user.get('LastName'),
+                                UserName: user.get('UserName'),
+                                SubscriptionPermission: user.get('SubscriptionPermission'),
+                                Role: user.get('Role'),
+                                CreationDate: user.get('CreationDate'),
+                                LastLoginDate: user.get('LastLoginDate'),
+                                UserPermission: project
+                            }
+                            users.push(userWithPermission);
+
+                        }
+                    });
+
+
+                });
+
+                console.log('Users!!>>',users);
+                var store = Ext.create('Rally.data.custom.Store', {
+                    data: users,
+                    scope: me
+                });
+                console.log('Initial store',store);    
+                deferred.resolve(store);
+            },
+            failure: function(){},
+            scope: me
+        });
+            return deferred.promise;
+
+    },
+
+
+    _getAllUsers: function(){
+        var me = this;
+        var deferred = Ext.create('Deft.Deferred');
+ 
+        var users = Ext.create('Rally.data.wsapi.Store',{
+            model: 'User',
+            limit: Infinity,
+            scope: me
+            
+
+        }).load({
+            callback: function(records,operation,successful){
+                deferred.resolve(records);
+            }
+        });
+
+        return deferred.promise;
+
+    },
+
+    _getAllProjects: function(){
+        var me = this;
+        var deferred = Ext.create('Deft.Deferred');
+
+        var projectPermission = Ext.create('Rally.data.wsapi.Store',{
+            model: 'ProjectPermission',
+            limit: Infinity,
+            scope: me
+        }).load({
+            callback: function(records,operation){
+                deferred.resolve(records);
+            }
+        });
+        return deferred.promise;
+    },
+
+    _getAllWorkspaces: function(){
+        var me = this;
+        var deferred = Ext.create('Deft.Deferred');
+
+        var workspacePermission = Ext.create('Rally.data.wsapi.Store',{
+            model: 'WorkspacePermission',
+            limit: Infinity,
+            scope: me
+        }).load({
+            callback: function(records,operation){
+                deferred.resolve(records);
+            }
+        });
+
+        return deferred.promise;
     }
+
+
 });
