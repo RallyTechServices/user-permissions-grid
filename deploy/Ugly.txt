@@ -3,10 +3,10 @@
 <head>
     <title>Technical Services App</title>
     <!--  (c) 2015 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sat Jan 23 2016 14:04:34 GMT-0500 (EST) -->
+    <!--  Build Date: Thu Jan 28 2016 10:05:50 GMT-0500 (EST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sat Jan 23 2016 14:04:34 GMT-0500 (EST)";
+        var APP_BUILD_DATE = "Thu Jan 28 2016 10:05:50 GMT-0500 (EST)";
         var CHECKSUM = [%= checksum %];
     </script>
     
