@@ -3,11 +3,11 @@
 <head>
     <title>Technical Services App</title>
     <!--  (c) 2015 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Thu Jan 28 2016 10:05:50 GMT-0500 (EST) -->
+    <!--  Build Date: Fri Jan 29 2016 09:20:53 GMT-0500 (EST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Thu Jan 28 2016 10:05:50 GMT-0500 (EST)";
-        var CHECKSUM = 47604575728;
+        var APP_BUILD_DATE = "Fri Jan 29 2016 09:20:53 GMT-0500 (EST)";
+        var CHECKSUM = 47606037417;
     </script>
     
     <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
@@ -1408,7 +1408,7 @@ Ext.define("TSApp", {
                         promises.push(function () {return me.loadStorePage(page, store);});
                     });
 
-                    PortfolioItemCostTracking.promise.ParallelThrottle.throttle(promises, 6, me).then({
+                    PortfolioItemCostTracking.promise.ParallelThrottle.throttle(promises, 12, me).then({
                         success: function(results){
                             //console.log('Throttle results',results);
                             deferred.resolve(_.flatten(results));

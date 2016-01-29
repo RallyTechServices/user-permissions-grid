@@ -398,7 +398,7 @@ Ext.define("TSApp", {
                         promises.push(function () {return me.loadStorePage(page, store);});
                     });
 
-                    PortfolioItemCostTracking.promise.ParallelThrottle.throttle(promises, 6, me).then({
+                    PortfolioItemCostTracking.promise.ParallelThrottle.throttle(promises, 12, me).then({
                         success: function(results){
                             //console.log('Throttle results',results);
                             deferred.resolve(_.flatten(results));
