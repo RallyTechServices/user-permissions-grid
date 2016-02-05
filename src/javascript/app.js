@@ -32,7 +32,7 @@ Ext.define("TSApp", {
     _loadAStoreWithAPromiseWithModel: function(){
         var me = this;
         var model_name = 'User',
-        field_names = ['FirstName','LastName','UserName','SubscriptionPermission','Role','CreationDate','LastLoginDate'];
+        field_names = ['FirstName','LastName','UserName','SubscriptionPermission','Role','CreationDate','LastLoginDate','CostCenter', 'Department', 'Disabled', 'Planner'];
         me.setLoading("Please wait.This may take long depending on the size of your data...");
 
         this._loadAStoreWithAPromise(model_name, field_names).then({
@@ -90,7 +90,11 @@ Ext.define("TSApp", {
                                             UserPermission: null,
                                             Role: records[i].get('Role'),
                                             CreationDate: records[i].get('CreationDate'),
-                                            LastLoginDate: records[i].get('LastLoginDate')
+                                            LastLoginDate: records[i].get('LastLoginDate'),
+                                            CostCenter: records[i].get('CostCenter'), 
+                                            Department: records[i].get('Department'), 
+                                            Disabled: records[i].get('Disabled'), 
+                                            Planner: records[i].get('Planner')
                                         }
                                         users.push(user);
                                         continue;
@@ -108,7 +112,11 @@ Ext.define("TSApp", {
                                                 UserPermission: workspaceArr[j],
                                                 Role: records[i].get('Role'),
                                                 CreationDate: records[i].get('CreationDate'),
-                                                LastLoginDate: records[i].get('LastLoginDate')
+                                                LastLoginDate: records[i].get('LastLoginDate'),
+                                                CostCenter: records[i].get('CostCenter'), 
+                                                Department: records[i].get('Department'), 
+                                                Disabled: records[i].get('Disabled'), 
+                                                Planner: records[i].get('Planner')
                                             }
                                             users.push(user);
                                         }
@@ -127,7 +135,11 @@ Ext.define("TSApp", {
                                                 UserPermission: projectArr[j],
                                                 Role: records[i].get('Role'),
                                                 CreationDate: records[i].get('CreationDate'),
-                                                LastLoginDate: records[i].get('LastLoginDate')
+                                                LastLoginDate: records[i].get('LastLoginDate'),
+                                                CostCenter: records[i].get('CostCenter'), 
+                                                Department: records[i].get('Department'), 
+                                                Disabled: records[i].get('Disabled'), 
+                                                Planner: records[i].get('Planner')
                                             }
                                             users.push(user);
                                         }
@@ -275,6 +287,26 @@ Ext.define("TSApp", {
                 {
                     text: 'Last Login Date', 
                     dataIndex: 'LastLoginDate',
+                    flex: 1
+                },
+                {
+                    text: 'CostCenter', 
+                    dataIndex: 'CostCenter',
+                    flex: 1
+                },
+                {
+                    text: 'Department', 
+                    dataIndex: 'Department',
+                    flex: 1
+                },
+                {
+                    text: 'Disabled', 
+                    dataIndex: 'Disabled',
+                    flex: 1
+                },
+                {
+                    text: 'Planner', 
+                    dataIndex: 'Planner',
                     flex: 1
                 }
                 

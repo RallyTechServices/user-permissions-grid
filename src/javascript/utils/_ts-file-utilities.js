@@ -204,7 +204,11 @@ Ext.define('Rally.technicalservices.FileUtilities', {
             }
             
             Ext.Array.each(pages, function(page) {
-                promises.push(function() { return me._loadStorePage(grid, store, columns, page, pages.length )} );
+                promises.push(function() { 
+                    //console.log('Loading page',page,'of',pages.length);
+                    //Rally.getApp().setLoading("Loading page "+page+ " of "+pages.length);
+                    return me._loadStorePage(grid, store, columns, page, pages.length )
+                });
             });
             
             Deft.Chain.sequence(promises).then({
@@ -235,11 +239,10 @@ Ext.define('Rally.technicalservices.FileUtilities', {
     _loadStorePage: function(grid, store, columns, page, total_pages){
         var deferred = Ext.create('Deft.Deferred');
 
-        //this.logger.log("_loadStorePage", page, " of ", total_pages);
-        
+
+
         store.loadPage(page, {
             callback: function (records) {
-                Rally.getApp().setLoading(Ext.String.format('Page {0} of {1}',page, total_pages));
                 var csv = [];
                 for (var i = 0; i < records.length; i++) {
                     var record = records[i];
@@ -249,6 +252,8 @@ Ext.define('Rally.technicalservices.FileUtilities', {
             },
             scope: this
         });
+        this.logger.log("_loadStorePage", page, " of ", total_pages);
+        Rally.getApp().setLoading("Loading page "+page+ " of "+total_pages);
         return deferred.promise;
     },
 
