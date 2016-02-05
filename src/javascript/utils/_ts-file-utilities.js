@@ -239,8 +239,7 @@ Ext.define('Rally.technicalservices.FileUtilities', {
     _loadStorePage: function(grid, store, columns, page, total_pages){
         var deferred = Ext.create('Deft.Deferred');
 
-        this.logger.log("_loadStorePage", page, " of ", total_pages);
-        Rally.getApp().setLoading("Loading page "+page+ " of "+total_pages);
+
 
         store.loadPage(page, {
             callback: function (records) {
@@ -253,6 +252,8 @@ Ext.define('Rally.technicalservices.FileUtilities', {
             },
             scope: this
         });
+        this.logger.log("_loadStorePage", page, " of ", total_pages);
+        Rally.getApp().setLoading("Loading page "+page+ " of "+total_pages);
         return deferred.promise;
     },
 
