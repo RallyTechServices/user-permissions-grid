@@ -18,24 +18,105 @@ Ext.define("TSApp", {
     integrationHeaders : {
         name : "TSApp"
     },
+
+
                         
     launch: function() {
         var me = this;
         console.log('Start >>>>>>>>>>>>>>',new Date());
-
-        me._loadAStoreWithAPromiseWithModel();
+        this.selectedWorkspaces = [this.getContext().getWorkspace()];
+        Rally.technicalservices.WsapiToolbox.fetchWorkspaces().then({
+            success: function(results){
+                me.workspaces = results;
+                me.logger.log('fetchArtifactTypes: ', this.supportedTypeDefinitions);
+                me._addSelectors();
+            },
+            failure: function(msg){
+                Rally.ui.notify.Notifier.showError({message: msg});
+            },
+            scope: me
+        });
 
     },
-    
+
+    _addSelectors: function(){
+        this.down('#container_header').removeAll();
+
+        var buttonWidth = 150;
+
+        var selectorCt = this.down('#container_header').add({
+            xtype: 'container',
+            itemId: 'selector-ct',
+            layout: 'hbox',
+            flex: 1,
+            padding: 5
+        });
+
+        selectorCt.add({
+            xtype: 'rallybutton',
+            text: 'Select Workspaces...',
+            width: buttonWidth,
+            cls: 'secondary',
+            listeners: {
+                click: this._selectWorkspaces,
+                scope: this
+            },
+            margin: 10
+        });
+
+        selectorCt.add({
+            xtype: 'rallybutton',
+            text: 'Update',
+            width: buttonWidth,
+            cls: 'primary',
+            listeners: {
+                click: this._loadAStoreWithAPromiseWithModel,
+                scope: this
+            },
+            margin: '10'
+        });
+    },
+
+    _selectWorkspaces: function(){
+        this.logger.log('_selectWorkspaces', this.workspaces);
+        Ext.create('Rally.technicalservices.dialog.PickerDialog',{
+            records: this.workspaces,
+            selectedRecords: this.selectedWorkspaces,
+            displayField: 'Name',
+            listeners: {
+                scope: this,
+                itemselected: this._workspacesSelected
+            }
+        });
+    },
+
+    _workspacesSelected: function(records){
+        this.logger.log('_workspacesSelected', records);
+         if (records.length > 0){
+            this.selectedWorkspaces = records;
+        } else {
+            this.selectedWorkspaces = [this.getContext().getWorkspace()];
+        }
+    },
+
+    _getSelectedContexts: function(){
+        this.logger.log('_getSelectedContexts');
+        var workspace_filter = [];
+        Ext.Array.each(this.selectedWorkspaces, function(wksp){
+            workspace_filter.push({property:'Workspace.ObjectID', value: wksp.ObjectID || wksp.get('ObjectID')});
+        });
+        return Rally.data.wsapi.Filter.or(workspace_filter);
+    },
 
    
     _loadAStoreWithAPromiseWithModel: function(){
         var me = this;
+        var selectedContexts = this._getSelectedContexts();
         var model_name = 'User',
         field_names = ['FirstName','LastName','UserName','SubscriptionPermission','Role','CreationDate','LastLoginDate','CostCenter', 'Department', 'Disabled', 'Planner'];
         me.setLoading("Please wait.This may take long depending on the size of your data...");
 
-        this._loadAStoreWithAPromise(model_name, field_names).then({
+        this._loadAStoreWithAPromise(model_name, field_names,selectedContexts).then({
             success: function(store) {
                 this._displayGrid(store);
                 console.log('End >>>>>>>>>>>>>>',new Date());
@@ -50,11 +131,11 @@ Ext.define("TSApp", {
     } ,
 
     //TODO: this and me are used in code interchangeably - need to cleanup
-    _loadAStoreWithAPromise: function(model_name, model_fields){
+    _loadAStoreWithAPromise: function(model_name, model_fields,selectedContexts){
         var deferred = Ext.create('Deft.Deferred');
         var me = this;
         //me.logger.log("Starting load:",model_name,model_fields);
-        me.setLoading('Loading All Uesrs');
+        me.setLoading('Loading All Users');
         Deft.Promise.all(me._getUserRecords()).then({
             success: function(records){
                     //console.log('total users -yay',records)
@@ -68,14 +149,14 @@ Ext.define("TSApp", {
                         _.each(records, function(result){
                              promises.push(function(){
                                 me.setLoading('Loading Workspaces and Projects for User - ' + userCount++ +' of '+totalUsers);
-                                return me._getColleciton(result); 
+                                return me._getColleciton(result,selectedContexts); 
                             });
                         },me);
 
 
                         Deft.Chain.sequence(promises).then({
                             success: function(results){
-                                console.log('All permissions >>',results,results.length);
+                                // console.log('All permissions >>',results,results.length);
                                 me.setLoading('Assigning Permissions All Users..');
                                 var usersAndPermission = [];
                                 var users = [];
@@ -148,14 +229,14 @@ Ext.define("TSApp", {
 
 
                                 }
-                                console.log('UserS >>',users);
+                                // console.log('UserS >>',users);
                                 // create custom store (call function ) combine permissions and results in to one.
                                 var store = Ext.create('Rally.data.custom.Store', {
                                     data: users,
                                     scope: this
                                 });
                                 me._initial_store = store;
-                                console.log('Initial store',store);    
+                                // console.log('Initial store',store);    
                                 deferred.resolve(store);                        
                             }
                         });
@@ -174,18 +255,26 @@ Ext.define("TSApp", {
         return this.fetchWsapiRecordsWithPaging({model:'User',fetch:['FirstName','LastName','UserName','SubscriptionPermission','CreationDate','LastLoginDate','Role','ObjectID']});
     },
 
-    _getWorkspaceColleciton: function(record){
-        return this.fetchWsapiRecordsWithPaging({model:'WorkspacePermission',fetch:['Workspace','User','Name','ObjectID'],filters: [{ property: 'User.ObjectID',value: record.get('ObjectID')}]});
+    _getWorkspaceColleciton: function(record,selectedContexts){
+        var filter = Ext.create('Rally.data.wsapi.Filter', {
+            property: 'User.ObjectID',value: record.get('ObjectID')
+        });
+        filter = selectedContexts.and(filter);
+        return this.fetchWsapiRecordsWithPaging({model:'WorkspacePermission',fetch:['Workspace','User','Name','ObjectID'],filters: filter});
     },
 
-    _getProjectColleciton: function(record){
-        return this.fetchWsapiRecordsWithPaging({model:'ProjectPermission',fetch:['Workspace','Project','User','Name','ObjectID'],filters: [{ property: 'User.ObjectID',value: record.get('ObjectID')}]});
+    _getProjectColleciton: function(record,selectedContexts){
+        var filter = Ext.create('Rally.data.wsapi.Filter', {
+            property: 'User.ObjectID',value: record.get('ObjectID')
+        });
+        filter = selectedContexts.and(filter);
+        return this.fetchWsapiRecordsWithPaging({model:'ProjectPermission',fetch:['Workspace','Project','User','Name','ObjectID'],filters: filter});
     },
 
-    _getColleciton: function(record){
+    _getColleciton: function(record,selectedContexts){
         me = this;
         var deferred = Ext.create('Deft.Deferred');
-        Deft.Promise.all([me._getProjectColleciton(record), me._getWorkspaceColleciton(record)],me).then({
+        Deft.Promise.all([me._getProjectColleciton(record,selectedContexts), me._getWorkspaceColleciton(record,selectedContexts)],me).then({
             success: function(results){
                 var projectAndWorkspace = {
                     Project: results[0],
@@ -203,7 +292,7 @@ Ext.define("TSApp", {
     },
 
     _displayGrid: function(store){
-      console.log('store before createing the grid',store);
+      // console.log('store before createing the grid',store);
       this._grid = this.down('#container_body').add({
             xtype: 'rallygrid',
             store: store,
@@ -328,6 +417,7 @@ Ext.define("TSApp", {
                     this._export();
                 }
             },
+            margin: '10',
             scope: this
         });
         
@@ -448,6 +538,7 @@ Ext.define("TSApp", {
             });
             return deferred;
         },
+        
         loadStorePage: function(pageNum, store){
             var deferred = Ext.create('Deft.Deferred');
             //console.log('pageNum',pageNum);

@@ -1,4 +1,26 @@
-#Technical Services App
+#User Permissions Grid
+
+This application allows Subscription Admin to list all the users in a subscription and view / download its workspace and project permissions.
+
+![ScreenShot](images/user-permissions-gird.png)
+
+You will be able to select one or more workspaces to list its users and permissions.
+
+
+####Steps to install the Application
+ 1. On your dashboard, click on the gear to add an app.
+ 2. Choose "Custom HTML" from the App Catalog. Add the app.
+ 3. Paste the code to HTML text area from the link - https://github.com/RallyTechServices/user-permissions-grid/blob/master/deploy/App.txt
+ 4. Click Save.
+
+
+####Steps to get started:
+ 1. Once the application is installed, you will be able to choose the workspaces by clicking "Select Workspaces..". 
+ 2. If you do not choose a workspace, the application will list all the permissions for the current workspace.
+ 3. Click update. Please note that. This may take long time to load the grid based on the size of the subscription and number of workspaces selected.
+ 4. Once the grid is loaded, click on next pages to view the grid. 
+ 5. Click on "Download CSV" to download all the records in a CSV file.
+
 
 ## Development Notes
 
