@@ -164,20 +164,20 @@ Ext.define("TSApp", {
                                 for (var i = 0; records && i < records.length; i++) {
                                     if((records[i].get('SubscriptionPermission')=='Subscription Admin') || (records[i].get('SubscriptionPermission')=='No Access')){
 
-                                        var user = {
-                                            FullName: records[i].get('FirstName') + ' ' +records[i].get('LastName'),
-                                            UserName: records[i].get('UserName'),
-                                            SubscriptionPermission: records[i].get('SubscriptionPermission'),
-                                            UserPermission: null,
-                                            Role: records[i].get('Role'),
-                                            CreationDate: records[i].get('CreationDate'),
-                                            LastLoginDate: records[i].get('LastLoginDate'),
-                                            CostCenter: records[i].get('CostCenter'), 
-                                            Department: records[i].get('Department'), 
-                                            Disabled: records[i].get('Disabled'), 
-                                            Planner: records[i].get('Planner')
-                                        }
-                                        users.push(user);
+                                        // var user = {
+                                        //     FullName: records[i].get('FirstName') + ' ' +records[i].get('LastName'),
+                                        //     UserName: records[i].get('UserName'),
+                                        //     SubscriptionPermission: records[i].get('SubscriptionPermission'),
+                                        //     UserPermission: null,
+                                        //     Role: records[i].get('Role'),
+                                        //     CreationDate: records[i].get('CreationDate'),
+                                        //     LastLoginDate: records[i].get('LastLoginDate'),
+                                        //     CostCenter: records[i].get('CostCenter'), 
+                                        //     Department: records[i].get('Department'), 
+                                        //     Disabled: records[i].get('Disabled'), 
+                                        //     Planner: records[i].get('Planner')
+                                        // }
+                                        // users.push(user);
                                         continue;
                                     }
 
@@ -274,19 +274,30 @@ Ext.define("TSApp", {
     _getColleciton: function(record,selectedContexts){
         me = this;
         var deferred = Ext.create('Deft.Deferred');
-        Deft.Promise.all([me._getProjectColleciton(record,selectedContexts), me._getWorkspaceColleciton(record,selectedContexts)],me).then({
-            success: function(results){
-                var projectAndWorkspace = {
-                    Project: results[0],
-                    Workspace: results[1]
-                };
-                deferred.resolve(projectAndWorkspace)
-            },
-            failure: function(){},
-            scope: me
-        });
 
+        if((record.get('SubscriptionPermission')=='Subscription Admin') || (record.get('SubscriptionPermission')=='No Access')){
+                    var projectAndWorkspace = {
+                        Project: null,
+                        Workspace: null
+                    };
+                    deferred.resolve(projectAndWorkspace);
 
+        }else{
+            Deft.Promise.all([me._getProjectColleciton(record,selectedContexts), me._getWorkspaceColleciton(record,selectedContexts)],me).then({
+                success: function(results){
+                    var projectAndWorkspace = {
+                        Project: results[0],
+                        Workspace: results[1]
+                    };
+                    deferred.resolve(projectAndWorkspace);
+                },
+                failure: function(){
+                    deferred.reject('Problem Loading. Please check logs');
+                },
+                scope: me
+            });
+
+        }
 
         return deferred;
     },
@@ -482,6 +493,7 @@ Ext.define("TSApp", {
                 model: model,
                 fetch: ['ObjectID'],
                 filters: query_filters,
+                enablePostGet:true,
                 limit: 1,
                 pageSize: 1
             }).load({
@@ -508,6 +520,7 @@ Ext.define("TSApp", {
                         model: config.model,
                         fetch: config.fetch,
                         filters: config.filters,
+                        enablePostGet:true,
                         pageSize: 200
                     }),
                     totalPages = Math.ceil(totalCount/200);
