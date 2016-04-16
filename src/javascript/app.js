@@ -252,7 +252,7 @@ Ext.define("TSApp", {
 
     _getUserRecords: function(){
         this.setLoading('Loading All Users');
-        return this.fetchWsapiRecordsWithPaging({model:'User',fetch:['FirstName','LastName','UserName','SubscriptionPermission','CreationDate','LastLoginDate','Role','ObjectID']});
+        return this.fetchWsapiRecordsWithPaging({model:'User',fetch:['FirstName','LastName','UserName','SubscriptionPermission','Role','CreationDate','LastLoginDate','CostCenter', 'Department', 'Disabled', 'Planner','ObjectID']});
     },
 
     _getWorkspaceColleciton: function(record,selectedContexts){
@@ -260,7 +260,7 @@ Ext.define("TSApp", {
             property: 'User.ObjectID',value: record.get('ObjectID')
         });
         filter = selectedContexts.and(filter);
-        return this.fetchWsapiRecordsWithPaging({model:'WorkspacePermission',fetch:['Workspace','User','Name','ObjectID'],filters: filter});
+        return this.fetchWsapiRecordsWithPaging({model:'WorkspacePermission',fetch:['Workspace','User','Role','Name','ObjectID'],filters: filter});
     },
 
     _getProjectColleciton: function(record,selectedContexts){
@@ -268,7 +268,7 @@ Ext.define("TSApp", {
             property: 'User.ObjectID',value: record.get('ObjectID')
         });
         filter = selectedContexts.and(filter);
-        return this.fetchWsapiRecordsWithPaging({model:'ProjectPermission',fetch:['Workspace','Project','User','Name','ObjectID'],filters: filter});
+        return this.fetchWsapiRecordsWithPaging({model:'ProjectPermission',fetch:['Workspace','Project','User','Role','Name','ObjectID'],filters: filter});
     },
 
     _getColleciton: function(record,selectedContexts){
@@ -360,11 +360,11 @@ Ext.define("TSApp", {
                     renderer: function(UserPermission){
                         var text = [];
                         if(UserPermission){
-                            if(UserPermission.get('_type') == 'projectpermission' || UserPermission.get('_type') == 'workspacepermission' ){
+                            // if(UserPermission.get('_type') == 'projectpermission' || UserPermission.get('_type') == 'workspacepermission' ){
                              text.push(UserPermission.get('Role') );
-                            }else{
-                            text.push('NA');
-                            }
+                            // }else{
+                            //     text.push('NA');
+                            // }
 
                         }else{
                             text.push('NA');
@@ -382,12 +382,18 @@ Ext.define("TSApp", {
                 {
                     text: 'Creation Date', 
                     dataIndex: 'CreationDate',
-                    flex: 1
+                    flex: 1,
+                    renderer:function(CreationDate){
+                        return Ext.Date.format(CreationDate, 'm/d/Y g:i:s A')
+                    }
                 },
                 {
                     text: 'Last Login Date', 
                     dataIndex: 'LastLoginDate',
-                    flex: 1
+                    flex: 1,
+                    renderer:function(LastLoginDate){
+                        return Ext.Date.format(LastLoginDate, 'm/d/Y g:i:s A')
+                    }
                 },
                 {
                     text: 'CostCenter', 
@@ -402,12 +408,18 @@ Ext.define("TSApp", {
                 {
                     text: 'Disabled', 
                     dataIndex: 'Disabled',
-                    flex: 1
+                    flex: 1,
+                    renderer:function(Disabled){
+                        return Disabled ? "Yes" : "No";
+                    }
                 },
                 {
                     text: 'Planner', 
                     dataIndex: 'Planner',
-                    flex: 1
+                    flex: 1,
+                    renderer:function(Planner){
+                        return Planner ? "Yes" : "No";
+                    }
                 }
                 
             ]
